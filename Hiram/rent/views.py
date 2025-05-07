@@ -14,9 +14,11 @@ from rest_framework import status
 from datetime import datetime, timedelta
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from .decorators import rate_limit
 
 # Authentication Views
 @csrf_exempt
+@rate_limit(limit=5, period=60)  # 5 requests per minute for registration
 def register_view(request):
     if request.method == 'POST':
         data = json.loads(request.body)
@@ -31,22 +33,28 @@ def register_view(request):
         return JsonResponse({'errors': form.errors}, status=400)
 
 @csrf_exempt
+@rate_limit(limit=5, period=60)  # 5 requests per minute for login
 def login_view(request):
     if request.method == 'POST':
-        data = json.loads(request.body)
-        form = LoginForm(data)
-        if form.is_valid():
-            user = form.authenticate_user()
-            if user:
-                refresh = RefreshToken.for_user(user)
-                return JsonResponse({
-                    'token': str(refresh.access_token)
-                })
-            return JsonResponse({'error': 'Invalid credentials'}, status=401)
-        return JsonResponse({'errors': form.errors}, status=400)
+        try:
+            data = json.loads(request.body)
+            form = LoginForm(data)
+            if form.is_valid():
+                user = form.authenticate_user()
+                if user:
+                    refresh = RefreshToken.for_user(user)
+                    return JsonResponse({
+                        'token': str(refresh.access_token)
+                    })
+                return JsonResponse({'error': 'Invalid credentials'}, status=401)
+            return JsonResponse({'errors': form.errors}, status=400)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+@rate_limit(limit=5, period=60)  # 5 requests per minute for protected view
 def protected_view(request):
     return JsonResponse({'message': 'Access granted to protected route'})
 
@@ -54,6 +62,7 @@ def protected_view(request):
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
+@rate_limit(limit=5, period=60)  # 5 requests per minute for car list
 def car_list(request):
     cars = Car.objects.all()
     serializer = CarSerializer(cars, many=True)
@@ -62,6 +71,7 @@ def car_list(request):
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
+@rate_limit(limit=5, period=60)  # 5 requests per minute for car creation
 def car_create(request):
     serializer = CarSerializer(data=request.data)
     if serializer.is_valid():
@@ -72,6 +82,7 @@ def car_create(request):
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
+@rate_limit(limit=5, period=60)  # 5 requests per minute for car detail
 def car_detail(request, pk):
     try:
         car = Car.objects.get(pk=pk)
@@ -84,6 +95,7 @@ def car_detail(request, pk):
 @api_view(['PUT'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
+@rate_limit(limit=5, period=60)  # 5 requests per minute for car update
 def car_update(request, pk):
     try:
         car = Car.objects.get(pk=pk)
@@ -105,6 +117,7 @@ def car_update(request, pk):
 @api_view(['DELETE'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
+@rate_limit(limit=5, period=60)  # 5 requests per minute for car delete
 def car_delete(request, pk):
     try:
         car = Car.objects.get(pk=pk)
@@ -127,6 +140,7 @@ def car_delete(request, pk):
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
+@rate_limit(limit=5, period=60)  # 5 requests per minute for rental list
 def rental_list(request):
     rentals = Rental.objects.filter(user=request.user)
     serializer = RentalSerializer(rentals, many=True)
@@ -135,6 +149,7 @@ def rental_list(request):
 @api_view(['POST'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
+@rate_limit(limit=5, period=60)  # 5 requests per minute for rental creation
 def rental_create(request):
     request.data['user'] = request.user.id
     serializer = RentalSerializer(data=request.data)
@@ -146,6 +161,7 @@ def rental_create(request):
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
+@rate_limit(limit=5, period=60)  # 5 requests per minute for rental detail
 def rental_detail(request, pk):
     try:
         rental = Rental.objects.get(pk=pk, user=request.user)
@@ -158,6 +174,7 @@ def rental_detail(request, pk):
 @api_view(['PUT'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
+@rate_limit(limit=5, period=60)  # 5 requests per minute for rental update
 def rental_update(request, pk):
     try:
         rental = Rental.objects.get(pk=pk, user=request.user)
@@ -173,6 +190,7 @@ def rental_update(request, pk):
 @api_view(['DELETE'])
 @authentication_classes([JWTAuthentication])
 @permission_classes([IsAuthenticated])
+@rate_limit(limit=5, period=60)  # 5 requests per minute for rental delete
 def rental_delete(request, pk):
     try:
         rental = Rental.objects.get(pk=pk, user=request.user)
