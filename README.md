@@ -1,0 +1,119 @@
+## Car Endpoints
+
+### List All Cars
+- **Method**: GET
+- **URL**: `/cars/`
+- **Headers**:
+  ```
+  Authorization: Bearer your.jwt.token
+  ```
+- **Response (200 OK)**:
+  ```json
+  [
+      {
+          "id": 1,
+          "brand": "Toyota",
+          "model": "Camry",
+          "year": 2020,
+          "price_per_day": 50.00,
+          "description": "A reliable sedan",
+          "owner": 1
+      }
+  ]
+  ```
+
+### Create Car
+- **Method**: POST
+- **URL**: `/cars/create/`
+- **Headers**:
+  ```
+  Authorization: Bearer your.jwt.token
+  Content-Type: application/json
+  ```
+- **Request Body**:
+  ```json
+  {
+      "brand": "Toyota",
+      "model": "Camry",
+      "year": 2020,
+      "price_per_day": 50.00,
+      "description": "A reliable sedan"
+  }
+  ```
+- **Response (201 Created)**:
+  ```json
+  {
+      "id": 1,
+      "brand": "Toyota",
+      "model": "Camry",
+      "year": 2020,
+      "price_per_day": 50.00,
+      "description": "A reliable sedan",
+      "owner": 1
+  }
+  ```
+
+### Get Car Details
+- **Method**: GET
+- **URL**: `/cars/{id}/`
+- **Headers**:
+  ```
+  Authorization: Bearer your.jwt.token
+  ```
+- **Response (200 OK)**:
+  ```json
+  {
+      "id": 1,
+      "brand": "Toyota",
+      "model": "Camry",
+      "year": 2020,
+      "price_per_day": 50.00,
+      "description": "A reliable sedan",
+      "owner": 1
+  }
+  ```
+
+### Update Car
+- **Method**: PUT
+- **URL**: `/cars/{id}/update/`
+- **Headers**:
+  ```
+  Authorization: Bearer your.jwt.token
+  Content-Type: application/json
+  ```
+- **Request Body**:
+  ```json
+  {
+      "brand": "Toyota",
+      "model": "Camry",
+      "year": 2021,
+      "price_per_day": 75.00,
+      "description": "Updated description"
+  }
+  ```
+- **Response (200 OK)**:
+  ```json
+  {
+      "id": 1,
+      "brand": "Toyota",
+      "model": "Camry",
+      "year": 2021,
+      "price_per_day": 75.00,
+      "description": "Updated description",
+      "owner": 1
+  }
+  ```
+
+### Delete Car
+- **Method**: DELETE
+- **URL**: `/cars/{id}/delete/`
+  - **Headers**:
+  ```
+  Authorization: Bearer your.jwt.token
+  ```
+- **Response (200 OK)**:
+  ```json
+  {
+      "message": "Car Toyota Camry has been successfully deleted"
+  }
+  ```
