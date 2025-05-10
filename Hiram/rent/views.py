@@ -1,11 +1,12 @@
 import json
+import jwt
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from django.shortcuts import get_object_or_404
 from .forms import RegisterForm, LoginForm
 from django.contrib.auth.models import User
-from .models import Car, Rental
+from .models import Car, Rental, UserProfile
 from .serializers import CarSerializer, RentalSerializer
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated
@@ -15,22 +16,45 @@ from datetime import datetime, timedelta
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from .decorators import rate_limit
+from .utils import generate_jwt
+from django.core.files.uploadedfile import InMemoryUploadedFile
+from django.core.exceptions import ValidationError
 
 # Authentication Views
 @csrf_exempt
 @rate_limit(limit=5, period=60)  # 5 requests per minute for registration
 def register_view(request):
     if request.method == 'POST':
-        data = json.loads(request.body)
-        form = RegisterForm(data)
-        if form.is_valid():
-            user = form.save()
-            refresh = RefreshToken.for_user(user)
-            return JsonResponse({
-                'message': 'User registered successfully.',
-                'token': str(refresh.access_token)
-            })
-        return JsonResponse({'errors': form.errors}, status=400)
+        try:
+            # Handle multipart form data
+            if request.content_type.startswith('multipart/form-data'):
+                form = RegisterForm(request.POST, request.FILES)
+                if form.is_valid():
+                    user = form.save()
+                    # Handle photo upload
+                    if 'photo' in request.FILES:
+                        photo = request.FILES['photo']
+                        # Check file size (2MB limit)
+                        if photo.size > 2 * 1024 * 1024:  # 2MB in bytes
+                            return JsonResponse({'error': 'Photo size must be less than 2MB'}, status=400)
+                        # Create or update user profile
+                        profile, created = UserProfile.objects.get_or_create(user=user)
+                        profile.photo = photo
+                        profile.save()
+                    return JsonResponse({'message': 'User registered successfully.'})
+                return JsonResponse({'errors': form.errors}, status=400)
+            else:
+                # Handle JSON data
+                data = json.loads(request.body)
+                form = RegisterForm(data)
+                if form.is_valid():
+                    form.save()
+                    return JsonResponse({'message': 'User registered successfully.'})
+                return JsonResponse({'errors': form.errors}, status=400)
+        except ValidationError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+        except Exception as e:
+            return JsonResponse({'error': str(e)}, status=400)
 
 @csrf_exempt
 @rate_limit(limit=5, period=60)  # 5 requests per minute for login

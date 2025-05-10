@@ -1,5 +1,48 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.core.validators import FileExtensionValidator
+from PIL import Image
+import os
+
+def user_profile_photo_path(instance, filename):
+    # Generate path: media/profile_photos/user_id/filename
+    ext = filename.split('.')[-1]
+    filename = f"{instance.user.id}_profile.{ext}"
+    return os.path.join('profile_photos', str(instance.user.id), filename)
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    photo = models.ImageField(
+        upload_to=user_profile_photo_path,
+        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'webp'])],
+        null=True,
+        blank=True
+    )
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.photo:
+            # Open the image
+            img = Image.open(self.photo.path)
+            
+            # Get the current dimensions
+            width, height = img.size
+            
+            # Calculate the new dimensions for 1:1 aspect ratio
+            size = min(width, height)
+            left = (width - size) // 2
+            top = (height - size) // 2
+            right = left + size
+            bottom = top + size
+            
+            # Crop the image
+            img = img.crop((left, top, right, bottom))
+            
+            # Save the cropped image
+            img.save(self.photo.path)
+
+    def __str__(self):
+        return f"{self.user.username}'s profile"
 
 class Car(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='cars')
