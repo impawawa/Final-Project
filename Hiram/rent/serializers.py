@@ -20,9 +20,10 @@ class RentalSerializer(serializers.ModelSerializer):
     car = CarSerializer(read_only=True)
     renter = UserSerializer(read_only=True)
     car_id = serializers.IntegerField(write_only=True)
+    total_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
 
     class Meta:
         model = Rental
         fields = ['id', 'car', 'car_id', 'renter', 'start_date', 'end_date',
                  'total_price', 'status', 'created_at', 'updated_at']
-        read_only_fields = ['renter', 'total_price', 'created_at', 'updated_at'] 
+        read_only_fields = ['renter', 'created_at', 'updated_at'] 

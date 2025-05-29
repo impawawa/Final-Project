@@ -166,7 +166,7 @@ def car_delete(request, pk):
 @permission_classes([IsAuthenticated])
 @rate_limit(limit=5, period=60)  # 5 requests per minute for rental list
 def rental_list(request):
-    rentals = Rental.objects.filter(user=request.user)
+    rentals = Rental.objects.filter(renter=request.user)
     serializer = RentalSerializer(rentals, many=True)
     return Response(serializer.data)
 
@@ -175,12 +175,40 @@ def rental_list(request):
 @permission_classes([IsAuthenticated])
 @rate_limit(limit=5, period=60)  # 5 requests per minute for rental creation
 def rental_create(request):
-    request.data['user'] = request.user.id
-    serializer = RentalSerializer(data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        # Get the car
+        car_id = request.data.get('car_id')
+        if not car_id:
+            return Response({'error': 'car_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        car = Car.objects.get(id=car_id)
+        
+        # Calculate total price
+        start_date = datetime.strptime(request.data.get('start_date'), '%Y-%m-%d').date()
+        end_date = datetime.strptime(request.data.get('end_date'), '%Y-%m-%d').date()
+        days = (end_date - start_date).days + 1  # Include both start and end dates
+        total_price = float(car.price_per_day) * days
+        
+        # Create rental data
+        rental_data = {
+            'car_id': car_id,
+            'start_date': start_date,
+            'end_date': end_date,
+            'total_price': str(total_price),  # Convert to string for DecimalField
+            'status': 'pending'
+        }
+        
+        serializer = RentalSerializer(data=rental_data)
+        if serializer.is_valid():
+            rental = serializer.save(renter=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    except Car.DoesNotExist:
+        return Response({'error': 'Car not found'}, status=status.HTTP_404_NOT_FOUND)
+    except ValueError as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
 @authentication_classes([JWTAuthentication])
@@ -201,15 +229,40 @@ def rental_detail(request, pk):
 @rate_limit(limit=5, period=60)  # 5 requests per minute for rental update
 def rental_update(request, pk):
     try:
-        rental = Rental.objects.get(pk=pk, user=request.user)
+        rental = Rental.objects.get(pk=pk, renter=request.user)
+        
+        # Get the car for price calculation
+        car = rental.car
+        
+        # Get dates from request or use existing ones
+        start_date = request.data.get('start_date', rental.start_date)
+        end_date = request.data.get('end_date', rental.end_date)
+        
+        # Convert string dates to date objects if they're strings
+        if isinstance(start_date, str):
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        if isinstance(end_date, str):
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        
+        # Calculate new total price
+        days = (end_date - start_date).days + 1
+        total_price = float(car.price_per_day) * days
+        
+        # Update rental data
+        data = request.data.copy()
+        data['total_price'] = str(total_price)
+        
+        serializer = RentalSerializer(rental, data=data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     except Rental.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-    
-    serializer = RentalSerializer(rental, data=request.data)
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': 'Rental not found'}, status=status.HTTP_404_NOT_FOUND)
+    except ValueError as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['DELETE'])
 @authentication_classes([JWTAuthentication])
@@ -217,9 +270,20 @@ def rental_update(request, pk):
 @rate_limit(limit=5, period=60)  # 5 requests per minute for rental delete
 def rental_delete(request, pk):
     try:
-        rental = Rental.objects.get(pk=pk, user=request.user)
+        rental = Rental.objects.get(pk=pk, renter=request.user)
+        car_info = f"{rental.car.brand} {rental.car.model}"
+        rental.delete()
+        return Response(
+            {'message': f'Rental for {car_info} has been successfully cancelled'},
+            status=status.HTTP_200_OK
+        )
     except Rental.DoesNotExist:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-    
-    rental.delete()
-    return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            {'error': 'Rental not found or you do not have permission to delete it'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
